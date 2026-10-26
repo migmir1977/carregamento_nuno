@@ -10,25 +10,70 @@ from common import COORDS, ROOT, load_meta, load_yaml, read_tarifas
 
 TEMPLATE = ROOT / "template" / "index.html"
 OUT = ROOT / "index.html"
-TARIFA_RE = r"€ ([\d.]+) /(\w+)(?: após (\d+) min)?(?: até (\d+) min)?"
+TARIFA_RE = r"€ ([\d.]+) /(\w+)(?: após ([\d.]+) min)?(?: até ([\d.]+) min)?"
 
 
 # ---------------------------------------------------------------- tarifas
 
+QUALIDADE = collections.Counter()
+
+
+def alternatives(g):
+    """Número máximo de preços diferentes (não nulos) para a mesma componente variável:
+    mesma unidade (kWh ou min) e mesma condição de tempo. 1 = normal; 2 = duas tarifas
+    alternativas (ex. EDP, provavelmente por dia/hora, informação que o ficheiro não tem);
+    mais de 2 = dados inválidos."""
+    var = g[(g.u != "charge") & (g.v > 0)]
+    return int(var.groupby(["u", "a", "b"]).v.nunique().max()) if len(var) else 1
+
+
 def load_sockets(cfg):
+    """Devolve [(primeira linha, linhas da tomada)] por tomada, depois de limpar o ficheiro.
+
+    Defesas contra problemas de qualidade dos dados da MOBI.E:
+      - linhas exatamente repetidas são removidas (senão seriam somadas);
+      - uma tomada é identificada por (posto, UID, tipo de tomada, potência), porque
+        alguns operadores reutilizam o mesmo UID em postos e tomadas diferentes;
+      - tomadas sem potência são excluídas;
+      - com duas tarifas alternativas usa-se a mais cara de cada componente
+        (em vez de as somar); com mais de duas, a tomada é excluída.
+    """
     regras = cfg["regras"]
     df = read_tarifas()
+    n0 = len(df)
+    df = df.drop_duplicates()
+    QUALIDADE["linhas repetidas removidas"] = n0 - len(df)
     df = df[df.TARIFA.notna() & df.TIPO_TOMADA.isin(["CCS", "MENNEKES"])].copy()
     df = df[df.TIPO_TARIFARIO.fillna("REGULAR").isin(regras.get("tarifarios", ["REGULAR"]))]
     df = df[~df.MUNICIPIO.isin(regras.get("excluir_municipios", []))]
+    excl_ops = df.OPERADOR.isin(regras.get("excluir_operadores") or [])
+    QUALIDADE["linhas de operadores excluídos na configuração"] = int(excl_ops.sum())
+    df = df[~excl_ops]
     df["P"] = df.POTENCIA_TOMADA.str.replace(",", ".").astype(float)
+    sem_p = df.P.isna()
+    QUALIDADE["linhas sem potência (excluídas)"] = int(sem_p.sum())
+    df = df[~sem_p]
     p = df.TARIFA.str.extract(TARIFA_RE)
     df["v"] = p[0].astype(float)
     df["u"] = p[1]
-    df["a"] = p[2].fillna(0).astype(int)
-    df["b"] = p[3].fillna(0).astype(int)
-    df = df[df.v.notna()]
-    return [(g.iloc[0], g) for _, g in df.groupby("UID_TOMADA")]
+    df["a"] = p[2].astype(float).fillna(0)
+    df["b"] = p[3].astype(float).fillna(0)
+    nao_lidas = df.v.isna()
+    QUALIDADE["tarifas em formato desconhecido (ignoradas)"] = int(nao_lidas.sum())
+    df = df[~nao_lidas]
+    out, bad_ops, alt_ops = [], collections.Counter(), collections.Counter()
+    for _, g in df.groupby(["ID", "UID_TOMADA", "TIPO_TOMADA", "P"]):
+        n = alternatives(g)
+        if n > 2:
+            bad_ops[g.OPERADOR.iloc[0]] += 1
+            continue
+        if n == 2:
+            alt_ops[g.OPERADOR.iloc[0]] += 1
+            g = g.sort_values("v").drop_duplicates(["u", "a", "b"], keep="last")
+        out.append((g.iloc[0], g))
+    QUALIDADE["tomadas com tarifas alternativas (usada a mais cara)"] = dict(alt_ops.most_common())
+    QUALIDADE["tomadas com dados inválidos (excluídas)"] = dict(bad_ops.most_common())
+    return out
 
 
 def session_cost(g, kwh, minutes, cut30, include_flat, flat_limit, iva):
@@ -257,6 +302,7 @@ def main():
     if left:
         raise SystemExit(f"Marcadores por substituir: {left}")
     OUT.write_text(t, encoding="utf-8")
+    print("Qualidade dos dados:", dict(QUALIDADE))
     for k, v in report.items():
         print(k, v)
     print(f"Gerado {OUT} ({OUT.stat().st_size / 1e6:.2f} MB)")

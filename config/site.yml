@@ -25,6 +25,11 @@ regras:
   # …mas só em tomadas com potência acima disto (nos postos lentos são normais).
   minimo_por_minuto_acima_de_kw: 4
   tarifarios: [REGULAR]       # vazio no ficheiro conta como REGULAR
+  # Operadores cujos dados no ficheiro da MOBI.E estão inválidos (ex. as tarifas de todos
+  # os postos repetidas em cada posto). Rever de vez em quando: podem ser corrigidos.
+  excluir_operadores:
+    - EPK   # out. 2026: tarifas de todos os postos copiadas para cada posto
+    - VIA   # out. 2026: mesmo problema
   excluir_municipios:          # Açores e Madeira
     - Angra do Heroísmo
     - Calheta, Azores
