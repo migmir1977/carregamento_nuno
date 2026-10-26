@@ -68,11 +68,15 @@ def session_minutes(s, P):
 
 
 def coords_lookup():
-    c = pd.read_csv(COORDS, dtype={"site_id": str, "ids": str})
+    c = pd.read_csv(COORDS, dtype={"site_id": str, "ids": str}).sort_values("site_id")
     m = {}
+    # Ordem determinística: identificadores secundários pela ordem dos locais (o primeiro ganha),
+    # e o próprio site_id tem prioridade sobre qualquer outro.
     for r in c.itertuples():
-        for t in set(str(r.ids).split("|")) | {r.site_id}:
-            m[t] = (round(r.lat, 6), round(r.lon, 6))
+        for t in sorted(set(str(r.ids).split("|"))):
+            m.setdefault(t, (round(r.lat, 6), round(r.lon, 6)))
+    for r in c.itertuples():
+        m[r.site_id] = (round(r.lat, 6), round(r.lon, 6))
 
     def look(i):
         for k in (i, i.replace("MOBI-", "", 1)):
