@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F2F5F4; --panel:#FFFFFF; --ink:#13283A; --muted:#5A6B78; --line:#D3DCDD;
+  --ac:#2E6FD8; --dc:#C8541B; --good:#1F8A5B; --chip:#E4EBEA;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0F1A22; --panel:#16242F; --ink:#E6EDF0; --muted:#93A4AF; --line:#2A3C49;
+  --ac:#6C9EF0; --dc:#F08A55; --good:#4FC48F; --chip:#21323E;}}
+:root[data-theme="dark"]{--paper:#0F1A22; --panel:#16242F; --ink:#E6EDF0; --muted:#93A4AF; --line:#2A3C49;
+  --ac:#6C9EF0; --dc:#F08A55; --good:#4FC48F; --chip:#21323E;}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 48px}
+header h1{font-size:clamp(22px,4vw,32px);line-height:1.15;margin:8px 0 6px;font-weight:700;letter-spacing:-.01em}
+header p{margin:0 0 4px;color:var(--muted);max-width:72ch}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin:20px 0 18px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--paper);padding:8px 0;z-index:5;border-bottom:1px solid var(--line)}
+nav button{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 12px;border-radius:999px;cursor:pointer}
+nav button[aria-selected="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+section[hidden]{display:none}
+h2{font-size:19px;margin:24px 0 4px}
+.note{color:var(--muted);font-size:13.5px;margin:0 0 10px;max-width:80ch}
+.ladders{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.ladder{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 14px 8px}
+.ladder h3{margin:0;font-size:16px}
+.ladder .sub{color:var(--muted);font-size:13px;margin:0 0 10px}
+.ladder .flag{font-size:13px;margin:0 0 10px;padding:6px 8px;border-radius:6px;background:var(--chip)}
+.rung{display:grid;grid-template-columns:34px 86px 1fr;align-items:center;gap:8px;padding:4px 2px;border-top:1px solid var(--line);cursor:pointer;width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;color:inherit;font:inherit}
+.rung:hover{background:var(--chip)}
+.rung .pid{font-family:"IBM Plex Sans Condensed",sans-serif;color:var(--muted);font-size:13px}
+.rung .price{font-weight:600;font-variant-numeric:tabular-nums;text-align:right;line-height:1.2}
+.rung .price small.k{display:block;font-weight:400;font-size:11.5px;color:var(--muted);font-family:"IBM Plex Sans Condensed",sans-serif}
+.rung .bar{position:relative;height:22px}
+.rung .bar i{position:absolute;left:0;top:3px;bottom:3px;border-radius:3px;background:var(--k);opacity:.85;min-width:2px}
+.rung .bar span{position:absolute;left:6px;top:0;line-height:22px;font-size:12.5px;font-family:"IBM Plex Sans Condensed",sans-serif;white-space:nowrap;color:var(--ink)}
+.rung .meta{grid-column:2/4;font-size:12.5px;color:var(--muted);font-family:"IBM Plex Sans Condensed",sans-serif;margin-top:-2px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:6px 0 12px}
+.filters label{display:flex;flex-direction:column;font-size:12.5px;color:var(--muted);gap:3px}
+.filters select,.filters input{font:inherit;font-size:14px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);min-width:150px}
+.count{font-size:13px;color:var(--muted);margin-left:auto}
+.tbl{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:7px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{font-weight:600;font-size:12.5px;color:var(--muted);white-space:nowrap;position:sticky;top:0;background:var(--panel)}
+th.s{cursor:pointer} th.s:hover{color:var(--ink)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.price{font-weight:600}
+td.best{white-space:nowrap} td.best small{display:block;color:var(--muted);font-family:"IBM Plex Sans Condensed",sans-serif}
+td.tar{font-family:"IBM Plex Sans Condensed",sans-serif;color:var(--muted);min-width:200px}
+td.mor{min-width:180px}
+.pill{display:inline-block;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:12.5px;padding:1px 7px;border-radius:999px;background:var(--chip);white-space:nowrap}
+.more{display:block;margin:12px auto 0;font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 16px;border-radius:999px;cursor:pointer}
+.summary{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--good);border-radius:8px;padding:8px 12px;margin:4px 0 12px;font-size:14px;max-width:90ch}
+.summary p{margin:2px 0}
+.tops{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px}
+.tops ol{margin:0;padding:0;list-style:none;counter-reset:t}
+.tops li{counter-increment:t;display:grid;grid-template-columns:26px 1fr auto;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:13.5px}
+.tops li::before{content:counter(t);color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.tops li b{font-variant-numeric:tabular-nums;text-align:right}
+.tops li small{display:block;color:var(--muted);font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:400}
+.map{color:var(--ac);text-decoration:underline;text-underline-offset:2px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0 0 14px}
+.box .row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.box label{display:flex;flex-direction:column;font-size:12.5px;color:var(--muted);gap:3px}
+.box input,.box select{font:inherit;font-size:14px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink)}
+.box input{min-width:min(340px,80vw)}
+.box button{font:inherit;font-size:14px;padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+.box button.pri{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.box .msg{margin:8px 0 0;font-size:13.5px}
+.box .msg.ok{color:var(--good)} .box .msg.err{color:var(--dc)}
+.box details{margin-top:8px;font-size:13px;color:var(--muted)} .box summary{cursor:pointer}
+.box details p{margin:6px 0 0;max-width:75ch}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.box .seg button{border:0;border-radius:0;border-right:1px solid var(--line);background:var(--paper)}
+.box .seg button:last-child{border-right:0}
+.box .seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.box .seg button:disabled{opacity:.45;cursor:default}
+.grp{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:0;max-width:min(720px,calc(100vw - 32px));width:100%}
+dialog::backdrop{background:rgba(10,20,30,.45)}
+dialog .dh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+dialog .dh h2{margin:0;font-size:17px}
+dialog .db{padding:4px 16px 16px;max-height:75vh;overflow:auto}
+dialog h3{font-size:15px;margin:16px 0 6px}
+dialog table{font-size:13.5px;margin:0 0 4px}
+dialog .close{font:inherit;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;padding:4px 10px;cursor:pointer}
+.now{display:inline-block;padding:0 7px;border-radius:999px;font-size:12.5px;background:var(--chip)}
+.now.vazio{background:var(--good);color:var(--paper)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>__H1__</h1>
+  <p>Postos MOBI.E agrupados em perfis de preço para __NSESS__. Tarifário normal (cartão ou app), só Portugal continental, sem pagamento ad hoc nem CHAdeMO.</p>
+  <p class="note" id="intro-note"></p>
+</header>
+<nav role="tablist">
+  <button role="tab" data-tab="perfis" aria-selected="true">Perfis</button>
+  <span id="tabs-sc" style="display:contents"></span>
+  <button role="tab" data-tab="top">Top 20 mais baratos</button>
+</nav>
+
+<div class="box" id="precos" hidden>
+  <div class="row">
+    <div class="grp">Preço<div class="seg" id="seg-sup" role="group" aria-label="Fornecedor"></div></div>
+    <div class="grp">Período<div class="seg" id="seg-per" role="group" aria-label="Período">
+      <button type="button" data-per="vazio">Vazio</button><button type="button" data-per="cheia">Cheia</button></div></div>
+    <button type="button" id="btn-info">ⓘ Tarifas e horários</button>
+  </div>
+  <p class="msg" id="pmsg"></p>
+</div>
+
+<div class="box">
+  <div class="row">
+    <label>Ponto central<input id="cin" list="munlist" placeholder="Município, coordenadas ou link do Google Maps" autocomplete="off"></label>
+    <button id="cgo" class="pri">Usar</button>
+    <button id="cme">A minha localização</button>
+    <label>Raio<select id="crad"><option value="2">2 km</option><option value="5">5 km</option><option value="10" selected>10 km</option><option value="20">20 km</option><option value="50">50 km</option><option value="0">Sem limite</option></select></label>
+    <button id="cclr">Limpar</button>
+  </div>
+  <datalist id="munlist"></datalist>
+  <p class="msg" id="cmsg">Sem ponto central: as listas mostram o país todo.</p>
+  <details><summary>Como copiar coordenadas do Google Maps</summary>
+    <p>No computador, clique com o botão direito no sítio pretendido; o primeiro item do menu são as coordenadas, e basta clicar nelas para as copiar. No telemóvel, toque e mantenha o dedo no mapa para largar um pin; as coordenadas aparecem na caixa de pesquisa e podem ser copiadas.</p>
+    <p>Também pode colar o link completo de um sítio aberto no Google Maps no browser do computador. Os links curtos de partilha (maps.app.goo.gl) não trazem coordenadas.</p>
+  </details>
+</div>
+
+<section id="perfis">
+  <p class="note" id="pnote"></p>
+  <div class="ladders" id="ladders"></div>
+</section>
+<div id="sections-sc"></div>
+<section id="top" hidden>
+  <p class="note" id="top-note"></p>
+  <div class="tops" id="tops"></div>
+</section>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlg-t">
+  <div class="dh"><h2 id="dlg-t">Tarifas e horários</h2><button class="close" type="button" id="dlg-x">Fechar</button></div>
+  <div class="db" id="dlg-b"></div>
+</dialog>
+
+<script>
+const CFG = __CFG__;
+const DATA = __DATA__;
+const MUNC = __MUNC__;
+const PNOTE = __PNOTE_JSON__;
+const F = CFG.fornecedores;
+const SCS = Object.keys(DATA);
+const IVA = CFG.iva;
+
+// ---------- utilidades
+const nf = (d,mn=d)=>({minimumFractionDigits:mn,maximumFractionDigits:d});
+const eur = v => v.toLocaleString('pt-PT',nf(2))+' €';
+const ekwh = (v,e) => (v/e).toLocaleString('pt-PT',nf(3))+' €/kWh';
+const num3 = (v,e) => (v/e).toLocaleString('pt-PT',nf(3));
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const maps = r => 'https://www.google.com/maps/search/?api=1&query='+(r.lat!=null ? r.lat+','+r.lon : encodeURIComponent(r.mor+', '+r.mun+', Portugal'));
+const fmtTar = t => esc(t).replace(/€ /g,'').replace(/ \+ /g,'<br>');
+const SKEY = k => 'cm:'+location.pathname+':'+k;
+const load = k => { try { return localStorage.getItem(SKEY(k)); } catch(e){ return null; } };
+const save = (k,v) => { try { v==null ? localStorage.removeItem(SKEY(k)) : localStorage.setItem(SKEY(k),v); } catch(e){} };
+const META = Object.fromEntries(SCS.map(sc=>[sc,{...CFG.cenarios[sc], color: CFG.cenarios[sc].tipo==='DC'?'var(--dc)':'var(--ac)'}]));
+
+for (const sc of SCS){
+  const cols = DATA[sc].cols;
+  DATA[sc].obj = DATA[sc].rows.map(r => Object.fromEntries(cols.map((c,i)=>[c,r[i]])));
+}
+
+// ---------- fornecedores e TAR
+let SUP = 'posto', PER = 'vazio';
+const forn = id => F.lista.find(f=>f.id===id);
+const supName = id => id==='posto' ? 'só posto' : forn(id).nome;
+const periodDependent = (sup) => sup!=='posto' && forn(sup).ciclo!=='simples';
+// parte do fornecedor para uma sessão: {final, v}; final=true substitui o preço do posto
+function supplierPart(sc, E, sup, per){
+  if (!F || sup==='posto') return {final:false, v:0};
+  const s = CFG.cenarios[sc], f = forn(sup), o = f[s.tipo];
+  if (o.preco_final!=null) return {final:true, v:o.preco_final*E};
+  const p = f.ciclo==='simples' ? 'simples' : per;
+  const en = typeof o.energia==='object' ? o.energia[p] : o.energia;
+  const tar = o.inclui_tar ? 0 : F.tar[s.tensao][p];
+  return {final:false, v:E*(en+tar)*(1+IVA)};
+}
+function total(sc, posto, E, sup=SUP, per=PER){
+  const m = supplierPart(sc,E,sup,per);
+  return m.final ? m.v : posto + m.v;
+}
+function options(sc){ // todas as combinações fornecedor × período
+  const res = [];
+  if (!F) return res;
+  for (const f of F.lista){
+    const o = f[CFG.cenarios[sc].tipo];
+    const pers = (f.ciclo==='simples' || o.preco_final!=null) ? [null] : ['vazio','cheia'];
+    for (const p of pers) res.push({sup:f.id, per:p||'vazio', label: f.nome+(p?' · '+p:'')});
+  }
+  return res;
+}
+// melhor opção por linha (não depende das escolhas do utilizador)
+if (F) for (const sc of SCS){
+  const opts = options(sc), E = CFG.cenarios[sc].kwh;
+  for (const r of DATA[sc].obj){
+    let best = null;
+    for (const o of opts){ const v = total(sc,r.c,E,o.sup,o.per); if(!best||v<best.v-1e-9) best={v,label:o.label}; }
+    r.b = Math.round(best.v*100)/100; r.bl = best.label;
+  }
+}
+function reprice(){
+  for (const sc of SCS){
+    const s = CFG.cenarios[sc];
+    for (const r of DATA[sc].obj){
+      r.t = Math.round(total(sc,r.c,s.kwh)*100)/100;
+      if (s.extra) r.t2 = Math.round(total(sc,r.c2,s.extra.kwh)*100)/100;
+    }
+  }
+}
+
+// ---------- hora de Lisboa e períodos
+function lisbonNow(d=new Date()){
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Lisbon',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(d).map(p=>[p.type,p.value]));
+  const h = +parts.hour, m = +parts.minute;
+  const off = ((h - d.getUTCHours()) % 24 + 24) % 24; // 1 no verão, 0 no inverno
+  const dia = parts.weekday==='Sun' ? 'domingo' : parts.weekday==='Sat' ? 'sabado' : 'uteis';
+  return {min:h*60+m, dia, estacao: off===1?'verao':'inverno', hhmm: parts.hour+':'+parts.minute};
+}
+function isVazio(ciclo, t=lisbonNow()){
+  const c = F.ciclos[ciclo]; if(!c.vazio) return null;
+  return c.vazio[t.estacao][t.dia].some(([a,b])=>t.min>=a && t.min<b);
+}
+
+// ---------- texto introdutório
+document.getElementById('intro-note').textContent =
+  `Valores com IVA a ${Math.round(IVA*100)}%, calculados a partir da tarifa do operador do posto publicada pela MOBI.E (a coluna da tarifa publicada mostra os valores originais, sem IVA). `+
+  (F ? 'Com um fornecedor escolhido, o preço inclui também a energia e a TAR desse fornecedor; não inclui a taxa da entidade gestora (EGME) nem o imposto especial de consumo. '
+     : 'A fatura final inclui ainda a parte do comercializador (CEME) e outras taxas, que variam conforme o contrato. ')+
+  `Os links de mapa usam as coordenadas do feed DATEX II da MOBI.E; quando o posto não aparece no feed, pesquisam pela morada. Tarifas MOBI.E de ${CFG.dados.tarifas}.`;
+document.getElementById('pnote').textContent =
+  'Cada perfil junta tomadas cujo custo no posto difere no máximo 0,30 € ou 10% (o maior) do valor de referência do perfil. Taxas fixas até 0,50 € não separam perfis, mas estão incluídas no preço mostrado. '+
+  (PNOTE?PNOTE+' ':'')+
+  'Ficaram de fora tarifas abaixo de 1 cêntimo por minuto (exceto nos postos AC até 4 kW, onde esses valores são normais) e postos que nunca cobram nada por kWh nem por minuto. Toque num perfil para ver os postos.';
+
+// ---------- separadores
+document.getElementById('tabs-sc').innerHTML = SCS.map(sc=>`<button role="tab" data-tab="${sc}">${esc(META[sc].separador)}</button>`).join('');
+document.getElementById('sections-sc').outerHTML = SCS.map(sc=>`<section id="${sc}" hidden></section>`).join('');
+const tabs=[...document.querySelectorAll('nav button')];
+function show(t){
+  tabs.forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===t));
+  document.querySelectorAll('section').forEach(s=>s.hidden = s.id!==t);
+  window.scrollTo({top:0});
+}
+tabs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));
+
+// ---------- perfis
+function renderLadders(){
+  const lad=document.getElementById('ladders'); lad.innerHTML='';
+  for (const sc of SCS){
+    const P=DATA[sc].profiles, maxT=Math.max(...P.map(p=>p.tom)), tot=P.reduce((a,p)=>a+p.tom,0), E=META[sc].kwh;
+    const m = supplierPart(sc,E,SUP,PER);
+    const box=document.createElement('div'); box.className='ladder'; box.style.setProperty('--k',META[sc].color);
+    box.innerHTML=`<h3>${esc(META[sc].titulo)}</h3><p class="sub">${P.length} perfis · ${tot.toLocaleString('pt-PT')} tomadas`+
+      (SUP!=='posto' && !m.final ? ` · preço final com ${esc(supName(SUP))}${periodDependent(SUP)?' em '+PER:''}` : '')+`</p>`+
+      (m.final ? `<p class="flag">Com ${esc(supName(SUP))}, qualquer posto deste cenário custa ${eur(m.v)} (${ekwh(m.v,E)}). Os perfis abaixo mostram só o preço do posto.</p>` : '');
+    for (const p of P){
+      const val = v => m.final ? v : v + m.v;
+      const b=document.createElement('button'); b.className='rung';
+      const ops=p.ops.slice(0,5).join(', ')+(p.ops.length>5?` e mais ${p.ops.length-5}`:'');
+      b.innerHTML=`<span class="pid">P${p.p}</span><span class="price">${eur(val(p.ref))}<small class="k">${ekwh(val(p.ref),E)}</small></span>
+        <span class="bar"><i style="width:${Math.max(1,100*p.tom/maxT)}%"></i><span>${p.post} postos · ${p.tom} tomadas</span></span>
+        <span class="meta">${eur(val(p.mn))} a ${eur(val(p.mx))} · ${esc(ops)}</span>`;
+      b.addEventListener('click',()=>{ lists[sc].setProfile(p.p); show(sc); });
+      box.appendChild(b);
+    }
+    lad.appendChild(box);
+  }
+}
+
+// ---------- ponto central
+let CENTER=null, RADIUS=10;
+const norm=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+const MUNN=Object.fromEntries(Object.keys(MUNC).map(k=>[norm(k),k]));
+document.getElementById('munlist').innerHTML=Object.keys(MUNC).sort((a,b)=>a.localeCompare(b,'pt')).map(m=>`<option value="${esc(m)}">`).join('');
+function hav(a,b,c,d){const R=6371,r=Math.PI/180,x=(c-a)*r,y=(d-b)*r,h=Math.sin(x/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+function parseCenter(s){
+  s=s.trim(); if(!s) return {err:'Escreva um município, coordenadas ou um link.'};
+  if(/goo\.gl|maps\.app/.test(s)) return {err:'Links curtos de partilha não trazem coordenadas. Use o clique direito no mapa para copiar as coordenadas.'};
+  let m=s.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/)||s.match(/@(-?\d+\.\d+),\s*(-?\d+\.\d+)/)||s.match(/(-?\d{1,2}\.\d+)\s*[,;\s]\s*(-?\d{1,3}\.\d+)/);
+  if(m){const lat=+m[1],lon=+m[2]; if(Math.abs(lat)>90||Math.abs(lon)>180) return {err:'Coordenadas inválidas.'}; return {lat,lon,label:lat.toFixed(5)+', '+lon.toFixed(5)};}
+  const n=norm(s); let k=MUNN[n];
+  if(!k){const c=Object.keys(MUNN).filter(x=>x.startsWith(n)); if(c.length===1) k=MUNN[c[0]]; else if(c.length>1) return {err:'Vários municípios começam assim: '+c.slice(0,6).map(x=>MUNN[x]).join(', ')+'…'};}
+  if(!k) return {err:'Não encontrei esse município. Pode usar coordenadas copiadas do Google Maps.'};
+  return {lat:MUNC[k][0],lon:MUNC[k][1],label:k+' (centro aproximado dos postos)'};
+}
+function applyCenter(c,persist=true){
+  CENTER=c;
+  for(const sc of SCS) for(const r of DATA[sc].obj) r.d = (CENTER&&r.lat!=null)? hav(CENTER.lat,CENTER.lon,r.lat,r.lon) : Infinity;
+  const msg=document.getElementById('cmsg');
+  if(CENTER){msg.className='msg ok'; msg.textContent='Ponto central: '+CENTER.label+(RADIUS?` · raio de ${RADIUS} km`:' · sem limite de distância')+'.';}
+  else {msg.className='msg'; msg.textContent='Sem ponto central: as listas mostram o país todo.';}
+  if(persist) save('centro', CENTER?JSON.stringify({c:CENTER,r:RADIUS}):null);
+  refresh();
+}
+const inRadius=r=>!CENTER||!RADIUS||r.d<=RADIUS;
+const fmtD=d=>isFinite(d)?d.toLocaleString('pt-PT',{maximumFractionDigits:d<10?1:0})+' km':'—';
+
+// ---------- resumo por cenário
+function summaryHTML(sc){
+  if (!F) return '';
+  const s=META[sc], E=s.kwh, out=[];
+  if (SUP==='posto') out.push('A mostrar só o preço do posto, sem energia nem TAR.');
+  else {
+    const m = supplierPart(sc,E,SUP,PER), nome = esc(supName(SUP));
+    if (m.final) out.push(`Com ${nome}, qualquer posto deste cenário custa <b>${eur(m.v)}</b> (${ekwh(m.v,E)}), a qualquer hora.`);
+    else if (periodDependent(SUP)){
+      const v=supplierPart(sc,E,SUP,'vazio').v, c=supplierPart(sc,E,SUP,'cheia').v;
+      out.push(`Com ${nome}, a energia soma ${eur(v)} em vazio e ${eur(c)} em cheia. Esperar pelo vazio poupa <b>${eur(c-v)}</b> nesta sessão.`);
+    } else out.push(`Com ${nome}, a energia soma ${eur(m.v)} a qualquer hora.`);
+  }
+  let best=null; for (const r of DATA[sc].obj) if (inRadius(r) && (!best || r.b<best.b)) best=r;
+  if (best) out.push(`Opção mais barata${CENTER&&RADIUS?` até ${RADIUS} km`:''}: <b>${eur(best.b)}</b> com ${esc(best.bl)} em ${esc(best.mun)}, ${esc(best.mor)} (${esc(best.id)}).`);
+  return out.map(x=>`<p>${x}</p>`).join('');
+}
+
+// ---------- listas
+const lists={};
+function makeList(sc){
+  const sec=document.getElementById(sc), D=DATA[sc], rows=D.obj, ex=META[sc].extra, E=META[sc].kwh;
+  const ops=[...new Set(rows.map(r=>r.op))].sort();
+  sec.innerHTML=`<h2>${esc(META[sc].titulo)}</h2>
+  <div class="summary" ${F?'':'hidden'}></div>
+  <p class="note">Uma linha por posto e preço. Preço estimado da sessão, incluindo taxa fixa, e o respetivo preço médio por kWh.${ex?` As colunas ${esc(ex.rotulo)} mostram o custo de ${ex.kwh} kWh em ${esc(ex.rotulo)}.`:''}${F?' "Melhor opção" é o fornecedor e período mais baratos para esse posto.':''}</p>
+  <div class="filters">
+    <label>Perfil<select data-f="perf"><option value="">Todos</option>${D.profiles.map(p=>`<option value="${p.p}">P${p.p} · posto ${eur(p.ref)}</option>`).join('')}</select></label>
+    <label>Operador<select data-f="op"><option value="">Todos</option>${ops.map(o=>`<option>${esc(o)}</option>`).join('')}</select></label>
+    <label>Município ou morada<input data-f="q" type="search" placeholder="ex. Lisboa"></label>
+    <span class="count"></span>
+  </div>
+  <div class="tbl"><table><thead><tr></tr></thead><tbody></tbody></table></div>
+  <button class="more">Mostrar mais</button>`;
+  const st={perf:'',op:'',q:'',sort:'t',dir:1,limit:100};
+  const tb=sec.querySelector('tbody'), cnt=sec.querySelector('.count'), more=sec.querySelector('.more'), sm=sec.querySelector('.summary'), hr=sec.querySelector('thead tr');
+  function header(){
+    const lab = SUP==='posto' ? 'Preço (posto)' : `Preço (${supName(SUP)}${periodDependent(SUP)&&!supplierPart(sc,E,SUP,PER).final?', '+PER:''})`;
+    hr.innerHTML=`<th class="num s" data-s="d">Dist.</th><th class="num s" data-s="t">${esc(lab)}</th><th class="num">€/kWh</th>`+
+      (ex?`<th class="num s" data-s="t2">${esc(ex.rotulo)}</th><th class="num">€/kWh ${esc(ex.rotulo)}</th>`:'')+
+      (F?'<th class="s" data-s="b">Melhor opção</th>':'')+
+      '<th class="s" data-s="perf">Perfil</th><th class="s" data-s="op">Operador</th><th class="s" data-s="mun">Município</th><th>Morada</th><th>Mapa</th><th>Posto</th><th class="num">kW</th><th class="num">Tomadas</th><th>Tarifa publicada</th>';
+    hr.querySelectorAll('th.s').forEach(th=>th.addEventListener('click',()=>{const s=th.dataset.s; st.dir = st.sort===s? -st.dir:1; st.sort=s; render();}));
+  }
+  function render(){
+    header();
+    if (F) sm.innerHTML = summaryHTML(sc);
+    const q=st.q.trim().toLowerCase();
+    let f=rows.filter(r=>(!st.perf||r.perf==st.perf)&&(!st.op||r.op===st.op)&&(!q||(r.mun+' '+r.mor).toLowerCase().includes(q))&&inRadius(r));
+    f.sort((a,b)=>{const x=a[st.sort],y=b[st.sort];return (x>y?1:x<y?-1:(a.c-b.c))*st.dir;});
+    cnt.textContent=f.length.toLocaleString('pt-PT')+' postos'+(CENTER&&RADIUS?` até ${RADIUS} km`:'');
+    tb.innerHTML=f.slice(0,st.limit).map(r=>`<tr><td class="num">${fmtD(r.d)}</td><td class="num price">${eur(r.t)}</td><td class="num">${num3(r.t,E)}</td>`+
+      (ex?`<td class="num">${eur(r.t2)}</td><td class="num">${num3(r.t2,ex.kwh)}</td>`:'')+
+      (F?`<td class="best">${eur(r.b)}<small>${esc(r.bl)}</small></td>`:'')+
+      `<td><span class="pill">P${r.perf}</span></td><td>${esc(r.op)}</td><td>${esc(r.mun)}</td><td class="mor">${esc(r.mor)}</td><td><a class="map" href="${maps(r)}" target="_blank" rel="noopener">${r.lat!=null?'Abrir':'Abrir (morada)'}</a></td><td>${esc(r.id)}</td><td class="num">${esc(r.P)}</td><td class="num">${r.n}</td><td class="tar">${fmtTar(r.tar)}</td></tr>`).join('');
+    more.hidden=f.length<=st.limit;
+  }
+  sec.querySelectorAll('[data-f]').forEach(el=>el.addEventListener('input',()=>{st[el.dataset.f]=el.value;st.limit=100;render();}));
+  more.addEventListener('click',()=>{st.limit+=200;render();});
+  return {render,setProfile(p){st.perf=String(p);sec.querySelector('[data-f=perf]').value=p;st.limit=100;render();}};
+}
+
+// ---------- top 20
+function renderTops(){
+  const box=document.getElementById('tops'); box.innerHTML='';
+  const key = F ? 'b' : 't';
+  document.getElementById('top-note').textContent = F
+    ? 'Ordenado pela melhor opção de cada posto: o fornecedor e o período mais baratos para esse posto.'
+    : 'Um posto por linha, com o preço mais baixo do posto.';
+  for (const sc of SCS){
+    const best={};
+    for (const r of DATA[sc].obj){ if(!inRadius(r)) continue; if(!best[r.id]||r[key]<best[r.id][key]) best[r.id]=r; }
+    const all=Object.values(best).sort((a,b)=>a[key]-b[key]||a.mun.localeCompare(b.mun));
+    const top=all.slice(0,20), cut=top.length?top[top.length-1][key]:0, ties=all.filter(r=>r[key]===cut).length - top.filter(r=>r[key]===cut).length;
+    const d=document.createElement('div'); d.className='ladder';
+    d.innerHTML=`<h3>${esc(META[sc].curto)}</h3><p class="sub">${CENTER&&RADIUS?`Até ${RADIUS} km do ponto central · ${all.length} postos. `:''}${ties>0?`Mais ${ties} postos empatados a ${eur(cut)}.`:''}</p>
+    <ol>${top.map(r=>`<li><span><a class="map" href="${maps(r)}" target="_blank" rel="noopener">${esc(r.mun)} · ${esc(r.mor)}</a><small>${esc(r.op)} · ${esc(r.id)} · ${esc(r.P)} kW${isFinite(r.d)?' · '+fmtD(r.d):''}</small></span><b>${eur(r[key])}<small>${F?esc(r.bl):ekwh(r[key],META[sc].kwh)}</small></b></li>`).join('')}</ol>`;
+    box.appendChild(d);
+  }
+}
+
+// ---------- controlos de preço
+function priceMsg(){
+  if (!F) return;
+  const msg = document.getElementById('pmsg');
+  const t = lisbonNow();
+  const agora = Object.entries(F.ciclos).filter(([,c])=>c.vazio).map(([id,c])=>`${c.nome.replace(/^Bi-horário, /,'')}: ${isVazio(id,t)?'vazio':'cheia'}`).join(' · ');
+  msg.textContent = (SUP==='posto' ? 'Só o preço do posto. ' : `Preço final com ${supName(SUP)}: posto + energia + TAR, com IVA. `)+`Agora (${t.hhmm}): ${agora}.`;
+}
+function syncControls(){
+  document.querySelectorAll('#seg-sup button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.sup===SUP));
+  const dep = periodDependent(SUP);
+  document.querySelectorAll('#seg-per button').forEach(b=>{ b.setAttribute('aria-pressed', dep && b.dataset.per===PER); b.disabled=!dep; });
+  priceMsg();
+}
+function refresh(){
+  reprice(); renderLadders();
+  for (const sc in lists) lists[sc].render();
+  renderTops(); syncControls();
+}
+
+if (F){
+  document.getElementById('precos').hidden=false;
+  const ids = F.lista.map(f=>f.id).concat('posto');
+  document.getElementById('seg-sup').innerHTML = ids.map(id=>`<button type="button" data-sup="${id}">${esc(id==='posto'?'Só posto':forn(id).nome)}</button>`).join('');
+  const sv = load('sup'); SUP = ids.includes(sv) ? sv : F.defeito;
+  const pv = load('per'); PER = pv==='cheia' ? 'cheia' : 'vazio';
+  document.querySelectorAll('#seg-sup button').forEach(b=>b.addEventListener('click',()=>{SUP=b.dataset.sup; save('sup',SUP); refresh();}));
+  document.querySelectorAll('#seg-per button').forEach(b=>b.addEventListener('click',()=>{PER=b.dataset.per; save('per',PER); refresh();}));
+
+  // painel de tarifas e horários
+  const dlg=document.getElementById('dlg');
+  const DIAS={uteis:'Dias úteis',sabado:'Sábado',domingo:'Domingo'};
+  const hm = m => String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+  const rangesTxt = (rs, merge) => { // merge: junta o intervalo que passa a meia-noite (só quando todos os dias são iguais)
+    const r=[...rs].sort((a,b)=>a[0]-b[0]);
+    if (merge && r.length>1 && r[0][0]===0 && r[r.length-1][1]===1440){ const first=r.shift(), last=r.pop(); r.push([last[0],first[1]+1440]); }
+    return r.map(([a,b])=> (a===0&&b===1440)?'todo o dia':`${hm(a)}–${hm(b>1440?b-1440:b)}`).join(', ');
+  };
+  function infoHTML(){
+    const t=lisbonNow(); let h='';
+    h+=`<p class="note">Hora legal de Portugal (${t.hhmm}, ${t.estacao==='verao'?'horário de verão':'horário de inverno'}). Fora dos períodos de vazio é cheia.</p>`;
+    for (const [id,c] of Object.entries(F.ciclos)){
+      if (!c.vazio){ h+=`<h3>${esc(c.nome)}</h3><p class="note">Sem períodos: o mesmo preço a qualquer hora.</p>`; continue; }
+      const v=isVazio(id,t);
+      h+=`<h3>${esc(c.nome)} <span class="now ${v?'vazio':''}">agora: ${v?'vazio':'cheia'}</span></h3>`;
+      const same = JSON.stringify(c.vazio.verao)===JSON.stringify(c.vazio.inverno);
+      const uni = same && JSON.stringify(c.vazio.verao.uteis)===JSON.stringify(c.vazio.verao.sabado) && JSON.stringify(c.vazio.verao.uteis)===JSON.stringify(c.vazio.verao.domingo);
+      if (uni) h+=`<table><tr><td>Todos os dias</td><td>Vazio ${rangesTxt(c.vazio.verao.uteis,true)}</td></tr></table>`;
+      else {
+        h+=`<table><tr><th></th><th>Verão</th><th>Inverno</th></tr>`+Object.keys(DIAS).map(d=>`<tr><td>${DIAS[d]}</td><td>${rangesTxt(c.vazio.verao[d])}</td><td>${rangesTxt(c.vazio.inverno[d])}</td></tr>`).join('')+`</table>`;
+      }
+    }
+    const f4 = v => v.toLocaleString('pt-PT',nf(4,2));
+    h+=`<h3>Tarifas de Acesso às Redes (€/kWh, sem IVA)</h3><table><tr><th></th><th class="num">Vazio</th><th class="num">Cheia</th></tr>`+
+      Object.entries(F.tar).map(([k,v])=>`<tr><td>${k==='BT'?'BT (postos AC)':k==='MT'?'MT (postos DC)':esc(k)}</td><td class="num">${f4(v.vazio)}</td><td class="num">${f4(v.cheia)}</td></tr>`).join('')+`</table>`;
+    const desc = (o,f) => o.preco_final!=null ? `${f4(o.preco_final)} €/kWh, preço final com IVA (inclui o posto)`
+      : `energia ${typeof o.energia==='object'?`${f4(o.energia.vazio)} vazio / ${f4(o.energia.cheia)} cheia`:f4(o.energia)} €/kWh sem IVA`+(o.inclui_tar?', TAR incluída':' + TAR');
+    h+=`<h3>Fornecedores</h3><table><tr><th>Fornecedor</th><th>Ciclo</th><th>AC</th><th>DC</th></tr>`+
+      F.lista.map(f=>`<tr><td>${esc(f.nome)}</td><td>${esc(F.ciclos[f.ciclo].nome)}</td><td>${desc(f.AC,f)}</td><td>${desc(f.DC,f)}</td></tr>`).join('')+`</table>`;
+    h+=`<p class="note">Preço final = preço do posto + kWh × (energia + TAR), tudo com IVA a ${Math.round(IVA*100)}%. Não inclui a taxa da entidade gestora (EGME) nem o imposto especial de consumo.</p>`;
+    h+=`<h3>Dados</h3><p class="note">Tarifas MOBI.E: ${esc(CFG.dados.tarifas)} · Coordenadas: ${esc(CFG.dados.coordenadas)}.</p>`;
+    return h;
+  }
+  document.getElementById('btn-info').addEventListener('click',()=>{ document.getElementById('dlg-b').innerHTML=infoHTML(); dlg.showModal ? dlg.showModal() : dlg.setAttribute('open',''); });
+  document.getElementById('dlg-x').addEventListener('click',()=>dlg.close ? dlg.close() : dlg.removeAttribute('open'));
+  dlg.addEventListener('click',e=>{ if(e.target===dlg) dlg.close(); });
+}
+
+for (const sc of SCS) lists[sc]=makeList(sc);
+refresh();
+
+const cin=document.getElementById('cin'), cmsg=document.getElementById('cmsg');
+function go(){const c=parseCenter(cin.value); if(c.err){cmsg.className='msg err';cmsg.textContent=c.err;return;} applyCenter(c);}
+document.getElementById('cgo').addEventListener('click',go);
+cin.addEventListener('keydown',e=>{if(e.key==='Enter')go();});
+cin.addEventListener('change',()=>{if(MUNN[norm(cin.value)])go();});
+document.getElementById('crad').addEventListener('change',e=>{RADIUS=+e.target.value; applyCenter(CENTER);});
+document.getElementById('cclr').addEventListener('click',()=>{cin.value='';applyCenter(null);});
+document.getElementById('cme').addEventListener('click',()=>{
+  if(!navigator.geolocation){cmsg.className='msg err';cmsg.textContent='Este browser não disponibiliza a localização. Use coordenadas.';return;}
+  cmsg.className='msg';cmsg.textContent='A obter a localização…';
+  navigator.geolocation.getCurrentPosition(p=>{const lat=+p.coords.latitude.toFixed(5),lon=+p.coords.longitude.toFixed(5);cin.value=lat+', '+lon;applyCenter({lat,lon,label:'a minha localização ('+lat+', '+lon+')'});},
+    ()=>{cmsg.className='msg err';cmsg.textContent='Não foi possível obter a localização (o browser pode bloqueá-la). Cole as coordenadas do Google Maps.';},{enableHighAccuracy:true,timeout:15000});
+});
+try{const s=JSON.parse(load('centro')||'null'); if(s&&s.c){RADIUS=s.r??10; document.getElementById('crad').value=String(RADIUS); cin.value=s.c.label.startsWith('a minha')?s.c.lat+', '+s.c.lon:s.c.label.replace(' (centro aproximado dos postos)',''); applyCenter(s.c,false);}}catch(e){}
+</script>
+</body>
+</html>

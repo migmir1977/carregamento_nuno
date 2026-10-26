@@ -1,0 +1,80 @@
+name: Atualizar dados e gerar a página
+
+on:
+  # Alterações à configuração, código, template ou dados: só reconstrói a página.
+  push:
+    branches: [main]
+    paths:
+      - "config/**"
+      - "scripts/**"
+      - "template/**"
+      - "data/**"
+      - "requirements.txt"
+      - ".github/workflows/site.yml"
+  # Todos os dias: descarrega os dados da MOBI.E e reconstrói se algo mudou.
+  schedule:
+    - cron: "17 5 * * *"
+  # Execução manual (separador Actions → Run workflow).
+  workflow_dispatch:
+    inputs:
+      descarregar:
+        description: "Descarregar dados novos da MOBI.E"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Descarregar tarifas
+        id: tarifas
+        if: github.event_name == 'schedule' || inputs.descarregar
+        continue-on-error: true
+        run: python scripts/fetch_tarifas.py
+
+      - name: Descarregar coordenadas (feed DATEX II)
+        id: coords
+        if: github.event_name == 'schedule' || inputs.descarregar
+        continue-on-error: true
+        run: python scripts/fetch_coords.py
+
+      - name: Gerar index.html
+        run: python scripts/build.py
+
+      - name: Guardar alterações
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          # meta.json muda a cada verificação; só conta se houver mudanças reais
+          git add data/tarifas.csv data/coords.csv index.html
+          if git diff --cached --quiet; then
+            echo "Sem alterações nos dados nem na página."
+            git checkout -- data/meta.json 2>/dev/null || true
+            exit 0
+          fi
+          git add data/meta.json
+          git commit -m "Atualização automática ($(date -u +%Y-%m-%d))"
+          git push
+
+      - name: Assinalar falhas de download
+        if: steps.tarifas.outcome == 'failure' || steps.coords.outcome == 'failure'
+        run: |
+          echo "::error::Falhou o download de tarifas (${{ steps.tarifas.outcome }}) ou de coordenadas (${{ steps.coords.outcome }}). A página foi gerada com os dados anteriores."
+          exit 1

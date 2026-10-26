@@ -1,0 +1,87 @@
+# Configuração da página. Qualquer alteração aqui reconstrói o site (GitHub Action).
+
+titulo: Carregamento na rua — Nuno
+h1: Quanto custa carregar 9 kWh em 2h50
+sessoes: duas sessões AC de 9 kWh em 2h50
+
+# Texto da nota no separador "Perfis".
+nota_perfis: >-
+  Os custos incluem todas as condições de tempo das tarifas (por exemplo, taxas
+  que só começam após 60 ou 120 min).
+
+# Origem dos dados (usada pelos scripts de download).
+fontes:
+  tarifas: https://www.mobie.pt/documents/42032/106470/Tarifas
+  coordenadas: https://pgm.mobie.pt/integration/nap/evChargingInfra
+
+regras:
+  iva: 0.23
+  # Tomadas no mesmo perfil se o custo diferir até max(abs, rel × valor de referência).
+  margem_perfil: {abs: 0.30, rel: 0.10}
+  # Taxas fixas por carregamento até este valor não separam perfis (mas entram no preço).
+  taxa_fixa_ignorada_ate: 0.50
+  # Tarifas por minuto acima de 0 e abaixo deste valor são consideradas erro…
+  minimo_por_minuto: 0.01
+  # …mas só em tomadas com potência acima disto (nos postos lentos são normais).
+  minimo_por_minuto_acima_de_kw: 4
+  tarifarios: [REGULAR]       # vazio no ficheiro conta como REGULAR
+  excluir_municipios:          # Açores e Madeira
+    - Angra do Heroísmo
+    - Calheta, Azores
+    - Calheta, Madeira
+    - Corvo
+    - Horta
+    - Lagoa, Azores
+    - Lajes das Flores
+    - Lajes do Pico
+    - Madalena
+    - Nordeste
+    - Ponta Delgada
+    - Povoação
+    - Praia da Vitória
+    - Ribeira Grande
+    - Santa Cruz da Graciosa
+    - Santa Cruz das Flores
+    - São Roque do Pico
+    - Velas
+    - Vila do Porto
+    - Vila Franca do Campo
+    - Câmara de Lobos
+    - Funchal
+    - Machico
+    - Ponta do Sol
+    - Porto Moniz
+    - Porto Santo
+    - Ribeira Brava
+    - Santa Cruz
+    - Santana
+    - São Vicente
+
+# Cenários (um separador cada).
+#   tomada: MENNEKES (AC) ou CCS (DC)
+#   pot_min / pot_max: potência em kW, inclusive; pot_acima_de: estritamente acima
+#   kwh: energia carregada
+#   minutos: duração da sessão, OU velocidade_pct: duração = kwh / (pct% × potência da tomada)
+#   ignorar_apos_30: ignora mudanças de preço que começam aos 30 min ou depois
+#   tensao: BT ou MT (TAR aplicada quando se escolhe um fornecedor)
+#   extra: segunda sessão mostrada como coluna adicional
+cenarios:
+  - id: N4
+    separador: AC até 4 kW
+    titulo: AC até 4 kW · 9 kWh em 2h50
+    curto: AC até 4 kW · 9 kWh / 2h50
+    tomada: MENNEKES
+    pot_max: 4
+    kwh: 9
+    minutos: 170
+    tensao: BT
+
+  - id: N22
+    separador: AC acima de 4 kW
+    titulo: AC acima de 4 kW · 9 kWh em 2h50
+    curto: AC acima de 4 kW · 9 kWh / 2h50
+    tomada: MENNEKES
+    pot_acima_de: 4
+    kwh: 9
+    minutos: 170
+    tensao: BT
