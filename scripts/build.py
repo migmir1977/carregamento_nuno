@@ -76,6 +76,12 @@ def load_sockets(cfg):
     return out
 
 
+def sorted_counts(s):
+    """Valores por frequência decrescente, empates por ordem alfabética."""
+    vc = s.value_counts()
+    return sorted(vc.index, key=lambda x: (-vc[x], x))
+
+
 def session_cost(g, kwh, minutes, cut30, include_flat, flat_limit, iva):
     """Custo do posto (com IVA) para uma sessão de `kwh` em `minutes`."""
     t = 0.0
@@ -169,7 +175,9 @@ def build_scenarios(cfg):
 
         # perfis por proximidade ao valor de referência (o mais frequente primeiro)
         L = []
-        for v, _ in g.k.value_counts().items():
+        # mais frequente primeiro; empates pelo valor, para o resultado não depender da versão do pandas
+        vc = g.k.value_counts()
+        for v in sorted(vc.index, key=lambda x: (-vc[x], x)):
             for p in L:
                 if abs(v - p["ref"]) <= max(m_abs, m_rel * p["ref"]):
                     p["vals"].append(v)
@@ -182,7 +190,7 @@ def build_scenarios(cfg):
         for i in range(len(L)):
             q = g[g.perf == i + 1]
             prof.append(dict(p=i + 1, ref=round(float(q.c.median()), 2), mn=float(q.c.min()), mx=float(q.c.max()),
-                             tom=int(len(q)), post=int(q.id.nunique()), ops=q.op.value_counts().index.tolist()))
+                             tom=int(len(q)), post=int(q.id.nunique()), ops=sorted_counts(q.op)))
 
         keys = ["id", "op", "mun", "mor", "tipo", "perf", "c", "tar"] + (["c2"] if "extra" in s else [])
         agg = (g.groupby(keys).agg(n=("P", "size"),
@@ -192,7 +200,7 @@ def build_scenarios(cfg):
         agg["lat"] = [a for a, _ in ll]
         agg["lon"] = [b for _, b in ll]
         for r in agg.itertuples():
-            if r.lat is not None:
+            if pd.notna(r.lat) and pd.notna(r.lon):
                 pts[r.mun][r.id] = (r.lat, r.lon)
         cols = ["c", "perf", "op", "mun", "mor", "id", "P", "n", "tar", "tipo", "lat", "lon"] + (["c2"] if "extra" in s else [])
         recs = [[None if (isinstance(v, float) and v != v) else (v.item() if hasattr(v, "item") else v) for v in row]

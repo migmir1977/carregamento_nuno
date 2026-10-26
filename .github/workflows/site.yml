@@ -59,19 +59,7 @@ jobs:
         run: python scripts/build.py
 
       - name: Guardar alterações
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          # meta.json muda a cada verificação; só conta se houver mudanças reais
-          git add data/tarifas.csv data/coords.csv index.html
-          if git diff --cached --quiet; then
-            echo "Sem alterações nos dados nem na página."
-            git checkout -- data/meta.json 2>/dev/null || true
-            exit 0
-          fi
-          git add data/meta.json
-          git commit -m "Atualização automática ($(date -u +%Y-%m-%d))"
-          git push
+        run: bash scripts/commit.sh
 
       - name: Assinalar falhas de download
         if: steps.tarifas.outcome == 'failure' || steps.coords.outcome == 'failure'
