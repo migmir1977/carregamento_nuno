@@ -185,10 +185,13 @@ for (const sc of SCS){
 let SUP = 'posto', PER = 'vazio';
 const forn = id => F.lista.find(f=>f.id===id);
 const supName = id => id==='posto' ? 'só posto' : forn(id).nome;
-const periodDependent = (sup) => sup!=='posto' && forn(sup).ciclo!=='simples';
+const isRede = sup => sup!=='posto' && !!forn(sup).rede;   // fornecedor com rede própria (ex. Continente)
+const periodDependent = (sup) => sup!=='posto' && !isRede(sup) && forn(sup).ciclo!=='simples';
+const NA = '—';
 // parte do fornecedor para uma sessão: {final, v}; final=true substitui o preço do posto
 function supplierPart(sc, E, sup, per){
   if (!F || sup==='posto') return {final:false, v:0};
+  if (isRede(sup)) return {rede:true, final:false, v:0};
   const s = CFG.cenarios[sc], f = forn(sup), o = f[s.tipo];
   if (o.preco_final!=null) return {final:true, v:o.preco_final*E};
   const p = f.ciclo==='simples' ? 'simples' : per;
@@ -200,20 +203,30 @@ function total(sc, posto, E, sup=SUP, per=PER){
   const m = supplierPart(sc,E,sup,per);
   return m.final ? m.v : posto + m.v;
 }
+// preço de uma linha para o fornecedor escolhido; null quando não se aplica ("—")
+function priceRow(sc, r, extra=false, sup=SUP, per=PER){
+  if (r.rede) return sup===r.rede ? (extra ? r.cf2 : r.cf) : null;
+  if (sup!=='posto' && F && isRede(sup)) return null;
+  const s = CFG.cenarios[sc];
+  return total(sc, extra ? r.c2 : r.c, extra ? s.extra.kwh : s.kwh, sup, per);
+}
 function options(sc){ // todas as combinações fornecedor × período
   const res = [];
   if (!F) return res;
   for (const f of F.lista){
+    if (f.rede) continue;   // redes próprias só nos seus postos
     const o = f[CFG.cenarios[sc].tipo];
     const pers = (f.ciclo==='simples' || o.preco_final!=null) ? [null] : ['vazio','cheia'];
     for (const p of pers) res.push({sup:f.id, per:p||'vazio', label: f.nome+(p?' · '+p:'')});
   }
   return res;
 }
+// sem fornecedores, priceRow devolve o preço do posto
 // melhor opção por linha (não depende das escolhas do utilizador)
 if (F) for (const sc of SCS){
   const opts = options(sc), E = CFG.cenarios[sc].kwh;
   for (const r of DATA[sc].obj){
+    if (r.rede){ r.b = r.cf; r.bl = forn(r.rede).nome; continue; }
     let best = null;
     for (const o of opts){ const v = total(sc,r.c,E,o.sup,o.per); if(!best||v<best.v-1e-9) best={v,label:o.label}; }
     r.b = Math.round(best.v*100)/100; r.bl = best.label;
@@ -223,8 +236,8 @@ function reprice(){
   for (const sc of SCS){
     const s = CFG.cenarios[sc];
     for (const r of DATA[sc].obj){
-      r.t = Math.round(total(sc,r.c,s.kwh)*100)/100;
-      if (s.extra) r.t2 = Math.round(total(sc,r.c2,s.extra.kwh)*100)/100;
+      const v = priceRow(sc,r); r.t = v==null ? null : Math.round(v*100)/100;
+      if (s.extra){ const v2 = priceRow(sc,r,true); r.t2 = v2==null ? null : Math.round(v2*100)/100; }
     }
   }
 }
@@ -269,13 +282,14 @@ function renderLadders(){
   const lad=document.getElementById('ladders'); lad.innerHTML='';
   for (const sc of SCS){
     const P=DATA[sc].profiles, maxT=Math.max(...P.map(p=>p.tom)), tot=P.reduce((a,p)=>a+p.tom,0), E=META[sc].kwh;
-    const m = supplierPart(sc,E,SUP,PER);
+    const m = supplierPart(sc,E,SUP,PER), RED = DATA[sc].redes || {};
     const box=document.createElement('div'); box.className='ladder'; box.style.setProperty('--k',META[sc].color);
     box.innerHTML=`<h3>${esc(META[sc].titulo)}</h3><p class="sub">${P.length} perfis · ${tot.toLocaleString('pt-PT')} tomadas`+
       (SUP!=='posto' && !m.final ? ` · preço final com ${esc(supName(SUP))}${periodDependent(SUP)?' em '+PER:''}` : '')+`</p>`+
-      (m.final ? `<p class="flag">Com ${esc(supName(SUP))}, qualquer posto deste cenário custa ${eur(m.v)} (${ekwh(m.v,E)}). Os perfis abaixo mostram só o preço do posto.</p>` : '');
+      (m.final ? `<p class="flag">Com ${esc(supName(SUP))}, qualquer posto deste cenário custa ${eur(m.v)} (${ekwh(m.v,E)}). Os perfis abaixo mostram só o preço do posto.</p>` : '')+
+      (m.rede ? `<p class="flag">${esc(supName(SUP))} só funciona nos postos ${esc(supName(SUP))}${RED[SUP]?`: ${redeTxt(RED[SUP],E)}`:' (nenhum neste cenário)'}. Os perfis abaixo mostram só o preço do posto MOBI.E.</p>` : '');
     for (const p of P){
-      const val = v => m.final ? v : v + m.v;
+      const val = v => (m.final || m.rede) ? v : v + m.v;
       const b=document.createElement('button'); b.className='rung';
       const ops=p.ops.slice(0,5).join(', ')+(p.ops.length>5?` e mais ${p.ops.length-5}`:'');
       b.innerHTML=`<span class="pid">P${p.p}</span><span class="price">${eur(val(p.ref))}<small class="k">${ekwh(val(p.ref),E)}</small></span>
@@ -284,9 +298,19 @@ function renderLadders(){
       b.addEventListener('click',()=>{ lists[sc].setProfile(p.p); show(sc); });
       box.appendChild(b);
     }
+    for (const [fid, ri] of Object.entries(RED)){   // linha à parte para cada rede própria
+      const b=document.createElement('button'); b.className='rung';
+      b.innerHTML=`<span class="pid">${esc(forn(fid).nome.slice(0,3))}</span><span class="price">${eur(ri.mn)}<small class="k">${ekwh(ri.mn,E)}</small></span>
+        <span class="bar"><i style="width:${Math.max(1,100*ri.tom/maxT)}%;background:var(--good)"></i><span>${ri.post} postos ${esc(forn(fid).nome)} · ${ri.tom} tomadas</span></span>
+        <span class="meta">${ri.mn!==ri.mx?`${eur(ri.mn)} a ${eur(ri.mx)} · `:''}preço final ${esc(forn(fid).nome)}, só nos postos ${esc(forn(fid).nome)}</span>`;
+      b.addEventListener('click',()=>{ lists[sc].setProfile('rede:'+fid); show(sc); });
+      box.appendChild(b);
+    }
     lad.appendChild(box);
   }
 }
+
+function redeTxt(ri,E){ return `${ri.post} postos, ${ri.mn===ri.mx?eur(ri.mn):eur(ri.mn)+' a '+eur(ri.mx)} (${ekwh(ri.mn,E)}${ri.mn!==ri.mx?' ou mais':''})`; }
 
 // ---------- ponto central
 let CENTER=null, RADIUS=10;
@@ -322,8 +346,9 @@ function summaryHTML(sc){
   const s=META[sc], E=s.kwh, out=[];
   if (SUP==='posto') out.push('A mostrar só o preço do posto, sem energia nem TAR.');
   else {
-    const m = supplierPart(sc,E,SUP,PER), nome = esc(supName(SUP));
-    if (m.final) out.push(`Com ${nome}, qualquer posto deste cenário custa <b>${eur(m.v)}</b> (${ekwh(m.v,E)}), a qualquer hora.`);
+    const m = supplierPart(sc,E,SUP,PER), nome = esc(supName(SUP)), ri = (DATA[sc].redes||{})[SUP];
+    if (m.rede) out.push(ri ? `${nome} só funciona nos postos ${nome}: <b>${redeTxt(ri,E)}</b> neste cenário. Nos postos MOBI.E aparece "—".` : `${nome} não tem postos neste cenário.`);
+    else if (m.final) out.push(`Com ${nome}, qualquer posto deste cenário custa <b>${eur(m.v)}</b> (${ekwh(m.v,E)}), a qualquer hora.`);
     else if (periodDependent(SUP)){
       const v=supplierPart(sc,E,SUP,'vazio').v, c=supplierPart(sc,E,SUP,'cheia').v;
       out.push(`Com ${nome}, a energia soma ${eur(v)} em vazio e ${eur(c)} em cheia. Esperar pelo vazio poupa <b>${eur(c-v)}</b> nesta sessão.`);
@@ -343,34 +368,40 @@ function makeList(sc){
   <div class="summary" ${F?'':'hidden'}></div>
   <p class="note">Uma linha por posto e preço. Preço estimado da sessão, incluindo taxa fixa, e o respetivo preço médio por kWh.${ex?` As colunas ${esc(ex.rotulo)} mostram o custo de ${ex.kwh} kWh em ${esc(ex.rotulo)}.`:''}${F?' "Melhor opção" é o fornecedor e período mais baratos para esse posto.':''}</p>
   <div class="filters">
-    <label>Perfil<select data-f="perf"><option value="">Todos</option>${D.profiles.map(p=>`<option value="${p.p}">P${p.p} · posto ${eur(p.ref)}</option>`).join('')}</select></label>
+    <label>Perfil<select data-f="perf"><option value="">Todos</option>${D.profiles.map(p=>`<option value="${p.p}">P${p.p} · posto ${eur(p.ref)}</option>`).join('')}${Object.keys(D.redes||{}).map(fid=>`<option value="rede:${fid}">${esc(forn(fid).nome)}</option>`).join('')}</select></label>
     <label>Operador<select data-f="op"><option value="">Todos</option>${ops.map(o=>`<option>${esc(o)}</option>`).join('')}</select></label>
     <label>Município ou morada<input data-f="q" type="search" placeholder="ex. Lisboa"></label>
     <span class="count"></span>
   </div>
   <div class="tbl"><table><thead><tr></tr></thead><tbody></tbody></table></div>
   <button class="more">Mostrar mais</button>`;
-  const st={perf:'',op:'',q:'',sort:'t',dir:1,limit:100};
+  const st={perf:'',op:'',q:'',sort:F?'b':'t',dir:1,limit:100};
   const tb=sec.querySelector('tbody'), cnt=sec.querySelector('.count'), more=sec.querySelector('.more'), sm=sec.querySelector('.summary'), hr=sec.querySelector('thead tr');
   function header(){
     const lab = SUP==='posto' ? 'Preço (posto)' : `Preço (${supName(SUP)}${periodDependent(SUP)&&!supplierPart(sc,E,SUP,PER).final?', '+PER:''})`;
-    hr.innerHTML=`<th class="num s" data-s="d">Dist.</th><th class="num s" data-s="t">${esc(lab)}</th><th class="num">€/kWh</th>`+
-      (ex?`<th class="num s" data-s="t2">${esc(ex.rotulo)}</th><th class="num">€/kWh ${esc(ex.rotulo)}</th>`:'')+
-      (F?'<th class="s" data-s="b">Melhor opção</th>':'')+
-      '<th class="s" data-s="perf">Perfil</th><th class="s" data-s="op">Operador</th><th class="s" data-s="mun">Município</th><th>Morada</th><th>Mapa</th><th>Posto</th><th class="num">kW</th><th class="num">Tomadas</th><th>Tarifa publicada</th>';
+    const arrow = s => st.sort===s ? (st.dir>0?' ▲':' ▼') : '';
+    hr.innerHTML=`<th class="num s" data-s="d">Dist.${arrow('d')}</th><th class="num s" data-s="t">${esc(lab)}${arrow('t')}</th><th class="num">€/kWh</th>`+
+      (ex?`<th class="num s" data-s="t2">${esc(ex.rotulo)}${arrow('t2')}</th><th class="num">€/kWh ${esc(ex.rotulo)}</th>`:'')+
+      (F?`<th class="s" data-s="b">Melhor opção${arrow('b')}</th>`:'')+
+      `<th class="s" data-s="perf">Perfil${arrow('perf')}</th><th class="s" data-s="op">Operador${arrow('op')}</th><th class="s" data-s="mun">Município${arrow('mun')}</th>`+'<th>Morada</th><th>Mapa</th><th>Posto</th><th class="num">kW</th><th class="num">Tomadas</th><th>Tarifa publicada</th>';
     hr.querySelectorAll('th.s').forEach(th=>th.addEventListener('click',()=>{const s=th.dataset.s; st.dir = st.sort===s? -st.dir:1; st.sort=s; render();}));
   }
   function render(){
     header();
     if (F) sm.innerHTML = summaryHTML(sc);
     const q=st.q.trim().toLowerCase();
-    let f=rows.filter(r=>(!st.perf||r.perf==st.perf)&&(!st.op||r.op===st.op)&&(!q||(r.mun+' '+r.mor).toLowerCase().includes(q))&&inRadius(r));
-    f.sort((a,b)=>{const x=a[st.sort],y=b[st.sort];return (x>y?1:x<y?-1:(a.c-b.c))*st.dir;});
+    const pf = st.perf.startsWith('rede:') ? (r=>r.rede===st.perf.slice(5)) : (r=>!st.perf||(!r.rede&&r.perf==st.perf));
+    let f=rows.filter(r=>pf(r)&&(!st.op||r.op===st.op)&&(!q||(r.mun+' '+r.mor).toLowerCase().includes(q))&&inRadius(r));
+    // valores em falta ("—") ficam sempre no fim; empates pela melhor opção
+    const tie=(a,b)=>((a.b??a.t??1e9)-(b.b??b.t??1e9));
+    f.sort((a,b)=>{const x=a[st.sort],y=b[st.sort];
+      if(x==null||y==null) return (x==null)-(y==null) || tie(a,b);
+      return (x>y?1:x<y?-1:0)*st.dir || tie(a,b);});
     cnt.textContent=f.length.toLocaleString('pt-PT')+' postos'+(CENTER&&RADIUS?` até ${RADIUS} km`:'');
-    tb.innerHTML=f.slice(0,st.limit).map(r=>`<tr><td class="num">${fmtD(r.d)}</td><td class="num price">${eur(r.t)}</td><td class="num">${num3(r.t,E)}</td>`+
-      (ex?`<td class="num">${eur(r.t2)}</td><td class="num">${num3(r.t2,ex.kwh)}</td>`:'')+
+    tb.innerHTML=f.slice(0,st.limit).map(r=>`<tr><td class="num">${fmtD(r.d)}</td><td class="num price">${r.t==null?NA:eur(r.t)}</td><td class="num">${r.t==null?NA:num3(r.t,E)}</td>`+
+      (ex?`<td class="num">${r.t2==null?NA:eur(r.t2)}</td><td class="num">${r.t2==null?NA:num3(r.t2,ex.kwh)}</td>`:'')+
       (F?`<td class="best">${eur(r.b)}<small>${esc(r.bl)}</small></td>`:'')+
-      `<td><span class="pill">P${r.perf}</span></td><td>${esc(r.op)}</td><td>${esc(r.mun)}</td><td class="mor">${esc(r.mor)}</td><td><a class="map" href="${maps(r)}" target="_blank" rel="noopener">${r.lat!=null?'Abrir':'Abrir (morada)'}</a></td><td>${esc(r.id)}</td><td class="num">${esc(r.P)}</td><td class="num">${r.n}</td><td class="tar">${fmtTar(r.tar)}</td></tr>`).join('');
+      `<td><span class="pill">${r.rede?esc(forn(r.rede).nome):'P'+r.perf}</span></td><td>${esc(r.op)}</td><td>${esc(r.mun)}</td><td class="mor">${esc(r.mor)}</td><td><a class="map" href="${maps(r)}" target="_blank" rel="noopener">${r.lat!=null?'Abrir':'Abrir (morada)'}</a></td><td>${esc(r.id)}</td><td class="num">${esc(r.P)}</td><td class="num">${r.n}</td><td class="tar">${fmtTar(r.tar)}</td></tr>`).join('');
     more.hidden=f.length<=st.limit;
   }
   sec.querySelectorAll('[data-f]').forEach(el=>el.addEventListener('input',()=>{st[el.dataset.f]=el.value;st.limit=100;render();}));
@@ -403,7 +434,9 @@ function priceMsg(){
   const msg = document.getElementById('pmsg');
   const t = lisbonNow();
   const agora = Object.entries(F.ciclos).filter(([,c])=>c.vazio).map(([id,c])=>`${c.nome.replace(/^Bi-horário, /,'')}: ${isVazio(id,t)?'vazio':'cheia'}`).join(' · ');
-  msg.textContent = (SUP==='posto' ? 'Só o preço do posto. ' : `Preço final com ${supName(SUP)}: posto + energia + TAR, com IVA. `)+`Agora (${t.hhmm}): ${agora}.`;
+  msg.textContent = (SUP==='posto' ? 'Só o preço do posto. '
+    : isRede(SUP) ? `Preço final ${supName(SUP)}, só nos postos ${supName(SUP)}; nos restantes aparece "—". `
+    : `Preço final com ${supName(SUP)}: posto + energia + TAR, com IVA. `)+`Agora (${t.hhmm}): ${agora}.`;
 }
 function syncControls(){
   document.querySelectorAll('#seg-sup button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.sup===SUP));
@@ -452,11 +485,12 @@ if (F){
     const f4 = v => v.toLocaleString('pt-PT',nf(4,2));
     h+=`<h3>Tarifas de Acesso às Redes (€/kWh, sem IVA)</h3><table><tr><th></th><th class="num">Vazio</th><th class="num">Cheia</th></tr>`+
       Object.entries(F.tar).map(([k,v])=>`<tr><td>${k==='BT'?'BT (postos AC)':k==='MT'?'MT (postos DC)':esc(k)}</td><td class="num">${f4(v.vazio)}</td><td class="num">${f4(v.cheia)}</td></tr>`).join('')+`</table>`;
-    const desc = (o,f) => o.preco_final!=null ? `${f4(o.preco_final)} €/kWh, preço final com IVA (inclui o posto)`
+    const desc = (o,f) => f.rede ? `só nos postos ${esc(f.nome)}: ${f4(o.preco_final)} €/kWh`+(o.escaloes||[]).map(e=>`; acima de ${e.acima_de_kw} kW, ${f4(e.preco_final)} €/kWh`).join('')+', preço final com IVA'
+      : o.preco_final!=null ? `${f4(o.preco_final)} €/kWh, preço final com IVA (inclui o posto)`
       : `energia ${typeof o.energia==='object'?`${f4(o.energia.vazio)} vazio / ${f4(o.energia.cheia)} cheia`:f4(o.energia)} €/kWh sem IVA`+(o.inclui_tar?', TAR incluída':' + TAR');
     h+=`<h3>Fornecedores</h3><table><tr><th>Fornecedor</th><th>Ciclo</th><th>AC</th><th>DC</th></tr>`+
       F.lista.map(f=>`<tr><td>${esc(f.nome)}</td><td>${esc(F.ciclos[f.ciclo].nome)}</td><td>${desc(f.AC,f)}</td><td>${desc(f.DC,f)}</td></tr>`).join('')+`</table>`;
-    h+=`<p class="note">Preço final = preço do posto + kWh × (energia + TAR), tudo com IVA a ${Math.round(IVA*100)}%. Não inclui a taxa da entidade gestora (EGME) nem o imposto especial de consumo.</p>`;
+    h+=`<p class="note">Preço final = preço do posto + kWh × (energia + TAR), tudo com IVA a ${Math.round(IVA*100)}%. Os fornecedores com rede própria só funcionam nos seus postos, que não estão na lista de tarifas da MOBI.E; os postos vêm do feed DATEX II. Não inclui a taxa da entidade gestora (EGME) nem o imposto especial de consumo.</p>`;
     h+=`<h3>Dados</h3><p class="note">Tarifas MOBI.E: ${esc(CFG.dados.tarifas)} · Coordenadas: ${esc(CFG.dados.coordenadas)}.</p>`;
     return h;
   }

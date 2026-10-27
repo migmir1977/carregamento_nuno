@@ -6,7 +6,7 @@ import statistics
 
 import pandas as pd
 
-from common import COORDS, ROOT, load_meta, load_yaml, read_tarifas
+from common import COORDS, REDES, ROOT, load_meta, load_yaml, read_tarifas
 
 TEMPLATE = ROOT / "template" / "index.html"
 OUT = ROOT / "index.html"
@@ -137,7 +137,53 @@ def coords_lookup():
     return look
 
 
-def build_scenarios(cfg):
+CONECTORES = {"iec62196T2": "MENNEKES", "iec62196T2COMBO": "CCS"}
+CONTINENTE_BBOX = (36.9, 42.2, -9.6, -6.1)  # lat min/max, lon min/max
+
+
+def rede_price(o, P):
+    """Preço final (€/kWh) de um fornecedor de rede própria para uma tomada de potência P."""
+    price = o["preco_final"]
+    for e in sorted(o.get("escaloes") or [], key=lambda e: e["acima_de_kw"]):
+        if P > e["acima_de_kw"]:
+            price = e["preco_final"]
+    return price
+
+
+def load_rede_sockets(forn, known_muns, mobie_points):
+    """Tomadas das redes próprias (data/redes.csv), já filtradas e com município atribuído."""
+    redes = {f["rede"]: f for f in (forn or {}).get("lista", []) if f.get("rede")}
+    if not redes or not REDES.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(REDES, dtype={"site_id": str, "localidade": str, "morada": str, "codigo_postal": str})
+    df = df[df.operador.isin(redes)].copy()
+    n0 = len(df)
+    lat0, lat1, lon0, lon1 = CONTINENTE_BBOX
+    df = df[df.lat.between(lat0, lat1) & df.lon.between(lon0, lon1)]
+    QUALIDADE["tomadas de redes próprias fora do continente ou com coordenadas inválidas (excluídas)"] = n0 - len(df)
+    df["tomada"] = df.conector.map(CONECTORES)
+    df = df[df.tomada.notna() & df.potencia_kw.notna()].copy()
+    df["fornecedor"] = df.operador.map(lambda o: redes[o]["id"])
+    df["nome"] = df.operador.map(lambda o: redes[o]["nome"])
+
+    # município: a localidade, se for um município conhecido; senão o do posto MOBI.E mais próximo
+    cache = {}
+
+    def municipio(r):
+        loc = (r.localidade or "").strip() if isinstance(r.localidade, str) else ""
+        if loc in known_muns:
+            return loc
+        key = (r.lat, r.lon)
+        if key not in cache:
+            best = min(mobie_points, key=lambda p: (p[0] - r.lat) ** 2 + ((p[1] - r.lon) * 0.77) ** 2)
+            cache[key] = best[2]
+        return cache[key]
+    df["mun"] = [municipio(r) for r in df.itertuples()]
+    QUALIDADE["tomadas de redes próprias consideradas"] = int(len(df))
+    return df
+
+
+def build_scenarios(cfg, forn=None):
     regras = cfg["regras"]
     iva = regras["iva"]
     flat_lim = regras["taxa_fixa_ignorada_ate"]
@@ -146,6 +192,9 @@ def build_scenarios(cfg):
     m_abs, m_rel = regras["margem_perfil"]["abs"], regras["margem_perfil"]["rel"]
     sockets = load_sockets(cfg)
     look = coords_lookup()
+    known_muns = {r.MUNICIPIO for r, _ in sockets}
+    mobie_points = sorted({(*look(r.ID), r.MUNICIPIO) for r, _ in sockets if look(r.ID)[0] is not None})
+    redes_df = load_rede_sockets(forn, known_muns, mobie_points)
     out, pts, report = {}, collections.defaultdict(dict), {}
 
     for s in cfg["cenarios"]:
@@ -199,15 +248,52 @@ def build_scenarios(cfg):
         ll = agg.id.map(look)
         agg["lat"] = [a for a, _ in ll]
         agg["lon"] = [b for _, b in ll]
+        agg["rede"] = None
+        agg["cf"] = None
+        if "extra" in s:
+            agg["cf2"] = None
+
+        # postos de redes próprias (ex. Continente): preço final do fornecedor, sem preço de posto
+        rede_info = {}
+        if len(redes_df):
+            # os postos de rede própria podem ter um intervalo de potência próprio (ex. o Continente
+            # cobra só por kWh, por isso um posto de 7,4 kW custa o mesmo que um de 22 kW)
+            sr = {**{k: v for k, v in s.items() if not k.startswith("pot_")}, **s.get("redes_potencia", {})} \
+                if "redes_potencia" in s else s
+            q = redes_df[[matches(sr, tm, P) for tm, P in zip(redes_df.tomada, redes_df.potencia_kw)]]
+            if len(q):
+                o_tipo = "DC" if s["tomada"] == "CCS" else "AC"
+                fo = {f["id"]: f for f in forn["lista"]}
+                rr = (q.groupby(["fornecedor", "nome", "operador", "site_id", "mun", "morada", "potencia_kw", "lat", "lon"])
+                      .size().reset_index(name="n"))
+                rr["price"] = [rede_price(fo[f][o_tipo], P) for f, P in zip(rr.fornecedor, rr.potencia_kw)]
+                rows_r = pd.DataFrame({
+                    "id": rr.site_id, "op": rr.operador, "mun": rr["mun"], "mor": rr.morada.fillna(""),
+                    "tipo": rr.nome, "perf": None, "c": None,
+                    "tar": [f"{nm}: {pr:.2f} €/kWh, preço final".replace(".", ",") for nm, pr in zip(rr.nome, rr.price)],
+                    "n": rr.n, "P": [str(int(v)) if v == int(v) else str(v) for v in rr.potencia_kw],
+                    "lat": rr.lat, "lon": rr.lon, "rede": rr.fornecedor,
+                    "cf": [round(pr * s["kwh"], 2) for pr in rr.price],
+                })
+                if "extra" in s:
+                    rows_r["c2"] = None
+                    rows_r["cf2"] = [round(pr * s["extra"]["kwh"], 2) for pr in rr.price]
+                for f_id, gq in rows_r.groupby("rede"):
+                    rede_info[f_id] = dict(post=int(gq.id.nunique()), tom=int(gq.n.sum()),
+                                           mn=float(gq.cf.min()), mx=float(gq.cf.max()))
+                agg = pd.concat([agg, rows_r[agg.columns]], ignore_index=True)
         for r in agg.itertuples():
             if pd.notna(r.lat) and pd.notna(r.lon):
                 pts[r.mun][r.id] = (r.lat, r.lon)
-        cols = ["c", "perf", "op", "mun", "mor", "id", "P", "n", "tar", "tipo", "lat", "lon"] + (["c2"] if "extra" in s else [])
-        recs = [[None if (isinstance(v, float) and v != v) else (v.item() if hasattr(v, "item") else v) for v in row]
+        cols = (["c", "perf", "op", "mun", "mor", "id", "P", "n", "tar", "tipo", "lat", "lon", "rede", "cf"]
+                + (["c2", "cf2"] if "extra" in s else []))
+        recs = [[None if (v is None or (isinstance(v, float) and v != v)) else (v.item() if hasattr(v, "item") else v)
+                 for v in row]
                 for row in agg[cols].itertuples(index=False)]
-        out[key] = {"profiles": prof, "cols": cols, "rows": recs}
-        report[key] = dict(perfis=len(prof), postos=int(agg.id.nunique()), sem_coords=int(agg.lat.isna().sum()),
-                           excluidas=dict(drop))
+        out[key] = {"profiles": prof, "cols": cols, "rows": recs, "redes": rede_info}
+        report[key] = dict(perfis=len(prof), postos=int(agg[agg.rede.isna()].id.nunique()),
+                           sem_coords=int(agg.lat.isna().sum()), excluidas=dict(drop),
+                           **({"redes_proprias": rede_info} if rede_info else {}))
 
     munc = {k: [round(statistics.median(p[0] for p in v.values()), 5),
                 round(statistics.median(p[1] for p in v.values()), 5)] for k, v in pts.items()}
@@ -258,6 +344,8 @@ def load_fornecedores(cfg):
             o = fo.get(tipo)
             if o is None:
                 raise SystemExit(f"Fornecedor {fo['id']}: falta o preço {tipo}")
+            if fo.get("rede") and "preco_final" not in o:
+                raise SystemExit(f"Fornecedor {fo['id']} {tipo}: fornecedor com rede própria exige 'preco_final'")
             if "preco_final" not in o and "energia" not in o:
                 raise SystemExit(f"Fornecedor {fo['id']} {tipo}: indicar 'energia' ou 'preco_final'")
             if (fo["ciclo"] == "simples" and "energia" in o and not o.get("inclui_tar")
@@ -279,7 +367,7 @@ def fmt_date(meta, key):
 def main():
     cfg = load_yaml("site.yml")
     forn = load_fornecedores(cfg)
-    data, munc, report = build_scenarios(cfg)
+    data, munc, report = build_scenarios(cfg, forn)
     meta = load_meta()
     page_cfg = {
         "iva": cfg["regras"]["iva"],

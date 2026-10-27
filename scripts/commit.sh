@@ -7,23 +7,24 @@ set -euo pipefail
 git config user.name "github-actions[bot]"
 git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
 
-FILES="data/tarifas.csv data/coords.csv data/meta.json index.html"
+FILES="data/tarifas.csv data/coords.csv data/redes.csv data/meta.json index.html"
 KEEP=$(mktemp -d)
 
 for attempt in 1 2 3; do
   # meta.json muda a cada verificação; só se faz commit se houver mudanças reais
-  if git diff --quiet -- data/tarifas.csv data/coords.csv index.html; then
+  # status (e não diff) para apanhar também ficheiros novos, como data/redes.csv na primeira vez
+  if [ -z "$(git status --porcelain -- data/tarifas.csv data/coords.csv data/redes.csv index.html)" ]; then
     echo "Sem alterações nos dados nem na página."
     exit 0
   fi
-  git add $FILES
+  for f in $FILES; do if [ -e "$f" ]; then git add "$f"; fi; done
   git commit -q -m "Atualização automática ($(date -u +%Y-%m-%d))"
   if git push -q origin HEAD:main; then
     echo "Enviado."
     exit 0
   fi
   echo "O ramo main mudou entretanto; a reconstruir sobre a versão mais recente (tentativa $attempt)."
-  cp data/tarifas.csv data/coords.csv data/meta.json "$KEEP"/
+  for f in data/tarifas.csv data/coords.csv data/redes.csv data/meta.json; do if [ -e "$f" ]; then cp "$f" "$KEEP"/; fi; done
   git fetch -q origin main
   git reset -q --hard origin/main
   cp "$KEEP"/* data/

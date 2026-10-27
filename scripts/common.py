@@ -10,6 +10,7 @@ CONFIG = ROOT / "config"
 DATA = ROOT / "data"
 TARIFAS = DATA / "tarifas.csv"
 COORDS = DATA / "coords.csv"
+REDES = DATA / "redes.csv"  # postos de redes próprias (ex. Continente), fora do ficheiro de tarifas
 META = DATA / "meta.json"
 
 TARIFAS_COLUNAS = {
