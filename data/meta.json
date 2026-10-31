@@ -1,18 +1,18 @@
 {
   "tarifas": {
     "fonte": "https://www.mobie.pt/documents/42032/106470/Tarifas",
-    "last_modified": "Fri, 30 Oct 2026 11:00:01 GMT",
-    "atualizado_em": "30/10/2026",
-    "verificado_em": "2026-10-30 11:24 UTC",
-    "tomadas": 17907,
-    "sha256": "c6b82340995111fc7fc42799692783396b964d45121fb5d085611242518a357c"
+    "last_modified": "Sat, 31 Oct 2026 10:00:01 GMT",
+    "atualizado_em": "31/10/2026",
+    "verificado_em": "2026-10-31 10:55 UTC",
+    "tomadas": 17915,
+    "sha256": "db55ffc64be1dcd5a68ee57f583d2190405679fa2f0af37343d1210c887203c5"
   },
   "coordenadas": {
     "fonte": "https://pgm.mobie.pt/integration/nap/evChargingInfra",
     "last_modified": null,
-    "atualizado_em": "30/10/2026",
-    "verificado_em": "2026-10-30 11:26 UTC",
-    "locais": 8794,
+    "atualizado_em": "31/10/2026",
+    "verificado_em": "2026-10-31 10:56 UTC",
+    "locais": 8797,
     "tomadas_redes_proprias": 0
   }
 }
